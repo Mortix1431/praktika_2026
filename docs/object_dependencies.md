@@ -68,11 +68,39 @@ virtual HRESULT getCriticalAllDependsOn(OUT mcsWorkIDArray& idsDependsOnOrdered)
 удаление включённого влечёт не удаление этого, а лишь его **перестроение**.
 Примеры: **эскиз**, **массивы**.
 
+## Типы реакций `enum mcReactorsType`
+
+Тип изменения, передаваемый в `onReactor` — известна причина, можно игнорировать
+нерелевантные:
+
+```cpp
+enum mcReactorsType {
+    kMcObjNone = 0x0,
+    kMcObjChanged,        // объект изменён
+    kMcObjErased,         // объект удалён
+    kMcObjAdded,          // system
+    kMcObjRemoved,        // system
+
+    // system: например, генерируется 3D-объектами, когда их форма реально
+    // изменилась; обычно шлётся из onUpdate при реальных изменениях модели
+    kMcObjModelChanged,
+
+    // как kMcObjModelChanged, но указывает на геом. изменения всей детали (part):
+    // если изменён дочерний солид, его host-солид генерирует это событие
+    kMcPartModelChanged,
+
+    // system: для пропуска isObjectInContainer(RPair.idFrom) в рассыльщике
+    // реакторов; шлётся из native objectModifyed
+    kMcNativeObjChanged,
+};
+```
+
+Связанные ограничения: `MCLINK_NAMELEN = 50` (символов), `MCLINK_MAXARRSIZE = 50`,
+`MCLINK_DEFAULT_NAME = "<noname>"`.
+
 ## Реактор `onReactor` — реакция на изменение зависимостей
 
-Вызывается, когда меняется объект, от которого зависит `this`. Тип изменения —
-`mcReactorsType` (`kMcObjChanged`, `kMcObjModelChanged`, …): известна причина,
-можно игнорировать нерелевантные.
+Вызывается, когда меняется объект, от которого зависит `this`.
 
 ```cpp
 HRESULT CMc3dSweepFeature::onReactor(IMcDbObject* pObj, mcReactorsType action)
