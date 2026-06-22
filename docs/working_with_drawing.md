@@ -81,8 +81,24 @@ virtual HRESULT erase() = 0;
 
 - `isKindOf` / `QueryInterface` — проверка/получение интерфейса.
 - `writeEnabled(...)` — перевод объекта в режим записи перед изменением (ср.
-  `TryModify`/`AssertWriteEnabled`).
+  `TryModify`/`AssertWriteEnabled`); код типа изменений — `McObjChangesTypeEnum`
+  (см. `object_dependencies.md`).
 - `invalidate()` — пометить объект как требующий пересчёта.
+
+### Сериализация `IMcDbObject`
+
+```cpp
+virtual HRESULT write(OUT IMcsStream* pStream) const = 0;
+virtual HRESULT read (IN  IMcsStream* pStream) = 0;
+
+// При записи платформенно-независимого стрима может потребоваться запись данных,
+// которые на самом деле зависят от платформы (например, файлы IPT для Inventor),
+// с целью ускорения вставки групп объектов. По умолчанию ничего не пишется/читается.
+// Вызывается из прототипов CDbEntityPrototype / CDbObjectPrototype, если стрим
+// платформенно-независимый.
+virtual HRESULT writePLMData4IndependentStream(IN OUT IMcsStream* pStream) const { return S_FALSE; }
+virtual HRESULT readPLMData4IndependentStream (IN OUT IMcsStream* pStream)       { return S_FALSE; }
+```
 
 ## Инструмент Entity / Detail Monitor (EM/DM тест)
 

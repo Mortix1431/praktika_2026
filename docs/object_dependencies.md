@@ -98,6 +98,39 @@ enum mcReactorsType {
 Связанные ограничения: `MCLINK_NAMELEN = 50` (символов), `MCLINK_MAXARRSIZE = 50`,
 `MCLINK_DEFAULT_NAME = "<noname>"`.
 
+## Код типа изменений `enum McObjChangesTypeEnum`
+
+Это тот самый «код типа изменений», который указывают в `TryModify` /
+`writeEnabled(dwChangesFlags)` (см. слайд 38 в `multicad_net_2d.md`). Флаги в
+файл не пишутся — значения можно менять.
+
+```cpp
+enum McObjChangesTypeEnum {
+    // общие типовые причины изменения объекта (значения общие для всех объектов)
+    kMcDbChanges__AddedForReset = 0x01, // системное: сброс флагов после рассылки реакторов
+    kMcDbChangesType_Geom       = 0x02, // изменилась геометрия объекта
+    kMcDbChangesType_Position   = 0x04, // изменилось положение объекта
+    kMcDbChangesType_Reactors   = 0x08, // изменились реакторы
+    kMcDbChangesType_Erasing    = 0x10, // удаление
+
+    // флаги в контексте приложения: разные типы объектов могут использовать
+    // одинаковые значения; (!) не должны перекрываться с kMcDbChangesType_...
+    kMcDbChangesType_Var_Value  = 0x00000100,   // Variables
+
+    kMcEntChangesType_KM_View_ObjCnt        = 0x00000100, // KM View
+    kMcEntChangesType_KM_View_DesignObjCnt  = 0x00000200,
+    kMcEntChangesType_KM_View_CS            = 0x00000400,
+    kMcEntChangesType_KM_View_AsmNameChanged= 0x00000800,
+
+    kMcEntChangesType_KM_ObjInst_MarkNoteContents  = 0x00000100, // KM ObjInst
+    kMcEntChangesType_KM_PlateInst_MarkNoteContents= 0x00000100, // KM PlateInst
+};
+```
+
+Передавая правильный код в `writeEnabled`, объект сообщает зависимым, *что
+именно* изменилось → они могут игнорировать нерелевантное (например, реагировать
+только на `kMcDbChangesType_Geom`, но не на смену цвета).
+
 ## Реактор `onReactor` — реакция на изменение зависимостей
 
 Вызывается, когда меняется объект, от которого зависит `this`.
