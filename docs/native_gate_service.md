@@ -70,6 +70,9 @@ virtual HRESULT SetVisibilityProcessState(IN bool fBeginning);
 
 ## Системные переменные (`GetSystemVariable` / `SetSystemVariable`)
 
+> Полный перечень ключей `enum McSystemVariable` (1…35) — в
+> `documents_manager_service.md`. Ниже — ключевые из них:
+
 Ключи системных переменных (.NET-имя → C++-ключ `IMcNativeGate::k…`):
 
 | Переменная | Ключ | Тип | Назначение |
