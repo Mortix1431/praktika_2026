@@ -96,7 +96,40 @@ virtual M_RET AddValue(LPCTSTR strKey, LPCTSTR strItem, LPCTSTR str,
 ```cpp
 virtual LPCTSTR GetDataPath(mcsDataPaths pathType) = 0;
 ```
-Типы путей `mcsDataPaths`: `MCS_FONTS`, `MCS_HELP`, `MCS_START_DIR`, `MCS_UPDATE`.
+
+### Полный enum `mcsDataPaths` ⚠️ значения не менять
+```cpp
+enum mcsDataPaths {
+    MCS_HELP = 0,
+    MCS_CORE_ROOT,
+    MCS_CORE_DIR,
+    MCS_APP_ROOT,
+    MCS_START_DIR,
+    MCS_EXAMPLES,
+    MCS_UPDATE,
+    MCS_FONTS,
+    MCS_DATA_ALL_RO,
+    MCS_DATA_ALL_RW,
+    MCS_DATA_RO,
+    MCS_DATA_USER,             // для отдельного пользователя, но для системы
+    MCS_DATA_USER_DOC,         // для пользователя — когда он сам создаёт/выбирает такие файлы
+    MCS_DATA_TEMPLATE,         // прототипы файлов для конкретного юзера
+    MCS_DATA_STDPARTS_CATALOG, // каталог стандартных компонентов
+    MCS_DATA_EMPTY_PATH,       // просто пустая строка (иногда надо)
+    MCS_DATA_LICENSES,         // путь к хранилищу лицензий (локальный)
+};
+```
+
+### Файловые константы `MCS_DATA_FILE_*`
+В том же перечислении за путями идут константы конкретных файлов, например:
+`MCS_DATA_FILE_SpecSymb_txt`, `MCS_DATA_FILE_DbTemplate3`, `MCS_DATA_FILE_StdDB`,
+`MCS_DATA_FILE_Settings_xml`, `MCS_DATA_FILE_quicksel_dat`,
+`MCS_DATA_FILE_McsHatchBH_pat`/`…BG_pat`, `MCS_DATA_FILE_Tolerance_txt`,
+`MCS_DATA_FILE_SPDS_ntb`, шаблоны спецификаций SolidWorks
+(`MCS_DATA_FILE_SW_SpTable_*`, `MCS_DATA_FILE_SW_SpBlockTitle_*`),
+IFC-настройки (`MCS_DATA_FILE_IfcImportSettings_xml`),
+`MCS_DATA_FILE_menu_dll_system2` (ресурсы меню — получать через
+`GetMenuDllFileName()`), `MCS_DATA_FILE_SettingsOverride` и др.
 
 ## Диагностика / обработка ошибок
 
@@ -120,23 +153,84 @@ virtual IMcTabManager*            GetTabManager() = 0;
 `GetProgress`: `hWndProgress` — handle ProgressBar (CommCtl); если `NULL` —
 системный progressbar; `hWndText` — текст прогресса.
 
-## Команды, уведомления, события (по примеру)
+## Уведомления пользователю
 
 ```cpp
-// Регистрация/выполнение команд
-gpMcContext->RegisterCommand(cmd);
-gpMcContext->ExecuteCommand(...);
+virtual int MessageBox(LPCTSTR lpszText, UINT nType = MB_OK) = 0;
+virtual int MessageBox(UINT nType, LPCTSTR strMessageFormat, ...) = 0;
 
-// Уведомления пользователю
-//MessageBox
-//ShowNotification / IMcNotificator::createMessage
+// показать сообщение-уведомление
+enum NotificationMode {
+    knmDefault = 0x0000,
+    knmPopup   = 0x0001,
+    knmNative  = 0x0002,
+};
+virtual HRESULT ShowNotification(LPCTSTR strMessage,
+                                 NotificationMode mode = knmDefault) = 0;
+// см. также IMcNotificator::createMessage
+```
 
-// Подписка на события
-//AttachEventsSink / DetachEventsSink
+## Команды
+
+```cpp
+// Регистрация: все команды в try...catch; при ошибке вызывается abortTransaction
+virtual HRESULT RegisterCommand(mcsCmd& cmd) = 0;
+
+virtual HRESULT ExecuteCommand(LPCTSTR strCommand, bool bAutoPrefix = true,
+        MCSVariant* pCustomParams = NULL, bool bIsCmdOption = false,
+        bool IgnoreQueue = false) = 0;                  // GATE WRAPPER
+
+// выполнение команд в режиме тестирования (звать внутри команды)
+virtual HRESULT TestExecuteCommand(LPCTSTR strCommand, LPCTSTR lpszInput) = 0;
+virtual HRESULT CancelCurCommand() = 0;                 // GATE WRAPPER
+
+virtual LPCTSTR SystemApplicationName() = 0;
+virtual bool    IsCommandEnabled(LPCTSTR strCmdName) { return false; }
+```
+
+## События
+
+```cpp
+// <hWnd> используется, если <pClientSink> представляет <IMcWndHook> (subclass окна)
+virtual HRESULT AttachEventsSink(IMcEventsSink* pClientSink, HWND hWnd = NULL,
+        HMODULE pModCaller = mcsGetCallerPtrModuleHandle()) = 0;
+virtual HRESULT DetachEventsSink(IMcEventsSink* pClientSink, HWND hWnd = NULL) = 0;
+```
+
+## Меню и MAPI-модули
+
+```cpp
+// полный путь к файлу конфигурации UI для текущих APP и PLM
+virtual McsString GetMenuCfgFileName() = 0;
+// полный путь к файлу иконок UI для текущих APP и PLM
+virtual McsString GetMenuDllFileName() = 0;
+
+// загрузка/выгрузка MAPI-модулей
+virtual HRESULT LoadModule(LPCTSTR lpszPath) = 0;
+virtual HRESULT UnloadModule(LPCTSTR lpszPath) = 0;
 ```
 
 ## Измерения
 
-`Measure(...)` — расстояние/диаметр/угол в модели документа: расстояние/диаметр
-в мм, угол в радианах. Значение `i3dMode`: `0` — режим измерения зависит от типа
-запуска, …
+```cpp
+// измеряет расстояние/диаметр/угол в модели документа;
+// расстояние/диаметр — в мм, угол — в радианах.
+// i3dMode:  0 — режим зависит от типа запуска; +1 — только 3D; -1 — только 2D
+virtual HRESULT Measure(OUT double& value, IN OPTIONAL LPCTSTR csPrompt,
+        IN OPTIONAL McsMeasureTypeFilterEnum measureFilter,
+        IN OPTIONAL int i3dMode = -1) = 0;              // GATE WRAPPER
+```
+
+## Тема оформления `IMcTheme`
+
+```cpp
+struct IMcTheme {
+    enum McThemeElement {
+        kColorUndefinedFirst,      // новые константы добавлять после First
+        kControlBackground, kControlActiveText, kControlText, kControlInactiveText,
+        kEditActiveBackground, kEditInactiveBackground, kEditActiveText, kEditInactiveText,
+        kActiveCellFrame,
+        // …Global…
+    };
+};
+```
