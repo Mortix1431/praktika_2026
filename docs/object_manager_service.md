@@ -96,6 +96,69 @@ mcsFilter() {
 }
 ```
 
+### Строковый фильтр `getObjectsByFilter(format, ...)`
+
+Альтернативная перегрузка с компактной строкой-форматом и переменным списком
+аргументов:
+
+```cpp
+virtual HRESULT getObjectsByFilter(IN LPCTSTR format, ...) = 0;
+```
+
+Коды формата:
+| Код | Аргумент | Значение |
+|---|---|---|
+| `AS` | — | active sheet (активный лист) |
+| `AD` | — | active document (активный документ) |
+| `D` | `mcsWorkID` | id документа/листа |
+| `C` | `GUID` | implementation class GUID |
+| `K` | `GUID` | supported interface kind (тип интерфейса) |
+| `R` | `McReferenceId` | refGroup ID |
+| `O` | `GUID, McsArray<typePtr,type>*` | вывод: массив объектов конкретного типа (массив **должен быть пуст** до вызова) |
+| `I` | `mcsWorkIDArray*` | вывод: массив идентификаторов объектов |
+| `N` | — | указатели брать из внутреннего контейнера, **не** через `getObject` (объект не будет перезагружен) |
+| `V` | — | только видимые |
+| `CH` | — | включая дочерние объекты |
+| `SF` | `DWORD` | фильтр по системным флагам (см. `IMcEntityType`) |
+
+```cpp
+// Пример: все выноски документа + их DB-интерфейсы
+McsArray<IMcLeaderPtr, IMcLeader*>     leaders;
+McsArray<IMcDbObjectPtr, IMcDbObject*> dbobjects;
+getObjectsByFilter("DKOO", docID, IID_IMcLeader, &leaders,
+                            IID_IMcDbObject, &dbobjects);
+
+// Простой пример: активный лист, тип-интерфейс — геометрия
+gpMcObjManager->getObjectsByFilter(_T("ASK"), IID_IMcGeometry);
+```
+
+### Интерактивный выбор `selectObjects`
+
+```cpp
+// использует фильтр по интерфейсам через IMcObject::isKindOf, если задан
+virtual HRESULT selectObjects(
+    OUT mcsWorkIDArray& objects,
+    IN bool bSingle,                 // true — нужен один объект
+    IN LPCTSTR strPromt = NULL,
+    IN const GUID* pClsUID = NULL,
+    /* для одиночной селекции — точка, куда ткнули (не факт, что точно на объекте) */ ...) = 0;
+```
+
+## Реакторы и обновление
+
+```cpp
+virtual void objectChanged(IN const mcsWorkID& objID, int iStatus) = 0;
+virtual void objectErased (IN const mcsWorkID& objID, bool isMcObject = true) = 0;
+
+// callReactor(WID_NULL, id, kMcObjChanged) транслируется на глобальный
+// OnObjectChanged(WID_NULL, ...)
+virtual void callReactor(IN const mcsWorkID& objTo, IN const mcsWorkID& objFrom,
+                         mcReactorsType action) = 0;
+
+virtual HRESULT updateAll() = 0;
+virtual HRESULT cancelAll() = 0;
+```
+
 ## Режимы текущей команды (CommandMode)
 
 `getCurrentCmdMode()` / `getAllCurrentCmdModes()` / `inCommandNow()`.

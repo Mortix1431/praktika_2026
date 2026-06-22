@@ -139,9 +139,54 @@ protected:
 | `IMcStdPartConstraint` | `00000010` |
 | `McDbDimension` | `00000011` |
 | `IMcGroup` | `00000012` |
+| `IMcUndoPoint` | `00000013` |
+| `IMcGeometry` | `00000014` |
+| `IMcBlockRef` | `00000015` |
+| `IMcSelectionSet` | `00000016` |
+| `IMcLinksManager` | `00000018` |
+| `IMcLC` | `00000019` |
+| `IMcGesture` | `0000001A` |
+| `IMcCtrDriver` | `00000020` |
+| `IMcPConstraint` | `00000021` |
+| `IMcLConstraint` | `00000022` |
+| `IMcWizSymbol` | `00000023` |
+| `IMtStream` | `00000024` |
+| `IMcImageRef` | `00000025` |
+| `IMcSearchEngine` | `00000026` |
+| `IMcSearchResult` | `00000027` |
+| `IMcSearcher` | `00000028` |
+| `IMcDBHeaderSearcher` | `00000029` |
+| `IMcDBHSearchResult` | `00000030` |
+| `IMcObjPropertySearcher` | `00000031` |
+| `IMcObjPropSearchResult` | `00000032` |
+| `IMcZombie` | `00000035` |
+| `IMcParameterRedefinition` | `00000036` |
+| `IMcPropertySource` | `00000037` |
+| `IMcAutoFree` | `00000038` |
 
-(`IMcDbReferenceEntity` `00000004` и `IMcReferenceEntity` `00000007` —
-закомментированы.)
+(`IMcDbReferenceEntity` `00000004`, `IMcReferenceEntity` `00000007`,
+`IMcReferenceContext` `00000017` — закомментированы.)
+
+## Пример: приведение и `QueryInterface` (SampleCmd1)
+
+Полный код — `examples/SampleCmd1_queryinterface.cpp`.
+
+```cpp
+IMcDbObjectPtr pDBO;          // умные указатели
+IMcDbEntityPtr pDBE;
+IMcDbObject* _pDBO = NULL;    // "сырые" указатели
+IMcDbEntity* _pDBE = NULL;
+
+_pDBO = _pDBE;                                           // вверх — неявно
+_pDBO->QueryInterface(__uuidof(*_pDBE), (void**)&_pDBE); // COM-приведение вниз
+
+pDBO = pDBE;                  // присваивание умных указателей = приведение интерфейса
+pDBE = pDBO;
+if(pDBE) pDBE->setVisibility(0);
+
+mcsWorkID id = pDBE->ID();
+pDBE = gpMcObjManager->getObject(id);
+```
 
 ## Связь с другими уроками
 
