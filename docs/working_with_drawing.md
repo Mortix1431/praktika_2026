@@ -140,3 +140,67 @@ typedef McsMapEx<DataS, const DataS&, bool, bool> McsMapDataSToBoolEx;
 - Проверка указателей перед обращением — `if(pCircArcDBE)` (п. 5.k).
 - Умные указатели вместо ручного `new/delete` (п. 5.e).
 - Контейнер `McsMapEx` вместо STL (п. 5.g.i).
+
+## Тот же сценарий на .NET (C#) — команда `test_wwobj`
+
+Класс `wwObjects` (`SandboxTestsCs`). Полный пример —
+`examples/wwObjects_drawing.cs`.
+
+```csharp
+[CommandMethod("test_wwobj", CommandFlags.NoCheck | CommandFlags.NoPrefix)]
+public bool test_wwObjects()
+{
+    McObjectId idCirc = McObjectId.FromHandle(0x4BA);
+    McDbEntity CircArcDBE = idCirc.GetObjectOfType<McDbEntity>();
+    if (CircArcDBE != null)
+    {
+        DbCircle circ = idCirc.GetObjectOfType<DbCircle>();
+        if (circ != null) circ.Radius = 5000;
+        CircArcDBE.Color = System.Drawing.Color.Green;
+        CircArcDBE.Update();
+    }
+
+    McObjectId idLine = McObjectId.FromHandle(0x4B8);
+    McDbEntity LineDBE = idLine.GetObjectOfType<McDbEntity>();
+    if (LineDBE != null)
+    {
+        Matrix3d tfmShifting = Matrix3d.Displacement(new Vector3d(1000, 0, 0));
+        LineDBE.Transform(tfmShifting);
+        LineDBE.Update();
+    }
+
+    McObjectId idLine2 = McObjectId.FromHandle(0x504);
+    McDbEntity LineDBE2 = idLine2.GetObjectOfType<McDbEntity>();
+    if (LineDBE2 != null) LineDBE2.Erase();
+
+    return true;
+}
+```
+
+### Соответствие C++ ↔ C#
+
+| C++ | C# (.NET) |
+|---|---|
+| `mcsWorkID::fromHandle(0x4BA)` | `McObjectId.FromHandle(0x4BA)` |
+| `gpMcObjManager->getObject(id)` + приведение | `id.GetObjectOfType<McDbEntity>()` |
+| `IMcCirclePtr pC = pCircArcDBE` | `DbCircle circ = id.GetObjectOfType<DbCircle>()` |
+| `pC->setRadius(5000)` | `circ.Radius = 5000` |
+| `setColor(RGB(0,255,0))` | `.Color = System.Drawing.Color.Green` |
+| `update()` | `.Update()` |
+| `mcsMatrix::translation(mcsVector(1000,0,0))` | `Matrix3d.Displacement(new Vector3d(1000,0,0))` |
+| `transform(tfm)` | `.Transform(tfm)` |
+| `erase()` | `.Erase()` |
+| `if(ptr)` (проверка указателя) | `if (obj != null)` |
+| атрибут `CommandMethod` (C++ `mcsCmd`) | `[CommandMethod("test_wwobj", CommandFlags.NoCheck \| CommandFlags.NoPrefix)]` |
+
+Пространства имён C#: `Multicad.Runtime`, `Multicad.DatabaseServices`,
+`Multicad.DatabaseServices.StandardObjects`, `Multicad.Geometry`,
+`Multicad.CustomObjectBase`, `Multicad.AplicationServices`, `Multicad.Objects`,
+`Multicad.Mc3D`.
+
+### Результат в nanoCAD
+
+После запуска команды `TEST_WWOBJ` окружность (handle `4BA`) перестроена и
+подсвечена: в инспекторе «Свойства» — `Радиус = 5000`, `Диаметр = 10000`,
+`Цвет = 0,128,0` (зелёный), центр `(125.0968, 13527.871, 0)`, длина окружности
+`31415.9265`, площадь `78539816.3397`. Отрезок сдвинут на 1000 по X.
