@@ -130,3 +130,98 @@ virtual bool onCanBeErased() const;
 траектории` → `2D Эскиз`, `Траектория (Отрезок)`, `Конец построений`. При
 изменении траектории или переменной срабатывает `onReactor` → тело
 перестраивается.
+
+## Реализация `getDependsOn` в фиче вращения
+
+`CMc3dRevolveFeature::getDependsOn` (`RevolveObj.cpp`) — типовой шаблон
+переопределения. Полный код — `examples/CMc3dRevolveFeature_getDependsOn.cpp`.
+
+```cpp
+HRESULT CMc3dRevolveFeature::getDependsOn(OUT mcsWorkIDArray& idsDependsOn,
+        IN OPTIONAL bool fAutoReplaceSubentIdByParentId,
+        IN OPTIONAL bool bRigidGeomDependsOnly)
+{
+    CMc3dFeatureCmnImpl::getDependsOn(idsDependsOn, false, bRigidGeomDependsOnly);
+
+    if(mAxisParam.id) {                                  // ось вращения
+        idsDependsOn.Add(mAxisParam.id);
+        idsDependsOn.last().setOptions(mcsWorkID_InexactFEV); // неточная FEV-зависимость
+    }
+    if(mIdProfile) idsDependsOn.Add(mIdProfile);         // профиль — последним
+
+    if(needAddVarsToDependsOnList(bRigidGeomDependsOnly))
+        if(mIdRotAngVar) idsDependsOn.Add(mIdRotAngVar); // переменная угла
+
+    if(fAutoReplaceSubentIdByParentId) {
+        mcsReplaceIdsByFtrOrParentId(idsDependsOn);
+        _storeDependsOn(idsDependsOn);
+    }
+    return S_OK;
+}
+```
+
+Тонкость порядка: **профиль добавляется последним**. Возможна комбинация, когда
+ось взята из того же эскиза, что и профиль; формально все ID равноправны, но ось
+никогда не может зависеть от профиля — поэтому ID профиля ставят в конец (вместо
+дорогой оценки взаимной зависимости — метод должен быть быстрым).
+`mcsWorkID_InexactFEV` помечает зависимость от элемента B-Rep как неточную.
+
+## Полный набор override-методов фичи (`CMc3dFeatureCmnImpl`-наследник)
+
+```cpp
+// идентификация / версия
+virtual int       getRefKeyGenAlgVer() const override;
+virtual McsString getClassName() const override;
+
+// связи
+virtual HRESULT getDependsOn(OUT mcsWorkIDArray&, IN OPTIONAL bool fAutoReplace = true,
+                             IN OPTIONAL bool bRigidGeomDependsOnly = false) override;
+virtual HRESULT _onReplaceObjDependsOn(const mcsWorkID& idFrom, const mcsWorkID& idTo) override;
+virtual HRESULT _getDependsOn4HardLinks(OUT mcsWorkIDArray& idsHardRefs,
+                                        bool bForPlmIndepStream) const override;
+virtual bool isValidVarVal4Obj(IN const mcsWorkID& idVar, double rVal) const;
+virtual Mc3dHistoryItemStatus getStatus(OUT OPTIONAL Mc3dHistItemErroInfo* pInfo = NULL) const override;
+
+// грани результата
+virtual bool _setFeatureFacesIds(const mcsWorkIDArray& idsStartFaces,
+        const mcsWorkIDArray& idsEndFaces, const mcsWorkIDArray& idsSideFaces) override;
+virtual HRESULT getStartFEV(OUT mcsWorkIDArray&, DWORD dwFEVFilter = kMcsSurfaceEntities) const override;
+virtual HRESULT getEndFEV (OUT mcsWorkIDArray&, DWORD dwFEVFilter = kMcsSurfaceEntities) const override;
+virtual HRESULT getSideFEV(OUT mcsWorkIDArray&, DWORD dwFEVFilter = kMcsSurfaceEntities) const override;
+
+// жизненный цикл / события
+virtual void    invalidate() override;
+virtual void    writeEnabled(DWORD dwChangesFlags = 0) override;
+virtual HRESULT onUpdate() override;
+virtual HRESULT onErase() override;
+virtual HRESULT onReactor(IMcDbObject* pObj, mcReactorsType action) override;
+virtual HRESULT onEvent(IMCEventType event, mcsExValueArray* pAdditionalParameters = NULL) override;
+virtual HRESULT onEdit(IN const mcsPoint& pnt, long lFlag = 0) override;
+
+// сериализация
+virtual HRESULT onWrite(OUT IMcsStream* pStream) const override;
+virtual HRESULT onRead (IN  IMcsStream* pStream) override;
+
+// свойства
+virtual HRESULT getProperties(OUT MCSStringArray& props) override;
+virtual HRESULT getProperty (const McsString& systemName, OUT MCSVariant& data) override;
+virtual HRESULT setProperty (const McsString& systemName, IN const MCSVariant& data) override;
+virtual HRESULT getPropertyInfo(const McsString& systemName, OUT McPropertyInfo& info) override;
+
+// профиль / ось / переменная угла
+virtual mcsWorkID getRotAngParamVarID() const override;
+virtual HRESULT   setProfileID(const mcsWorkID& idProfile) override;
+virtual mcsWorkID getProfileID() const override;
+bool _isAxisOk();
+bool _isProfileOk();
+bool _areAxisNProfileOk_in_feature_constuctor(bool fShowAlert, McsString* pStrErrInfo = NULL); // co-planarity & intersection
+```
+
+## Менеджер параметров (Менеджер параметров)
+
+Параметры модели редактируются в диалоге «Менеджер параметров» (вкладка `3D`):
+столбцы **Имя / Выражение / Значение / Связанный объект**. Пример:
+`ang1 = 0` → «Вытягивание по траектории», `ang2 = 90` → «Вращение». Программный
+доступ — `DocumentVariablesManager` (см. `multicad_net_3d.md`): переменные
+связаны с объектами (`mIdRotAngVar` и т.п.), их изменение через реакторы
+перестраивает тело.
