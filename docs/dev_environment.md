@@ -85,9 +85,40 @@ sources/MCS/branches/
 На рабочем столе — несколько версий CAD (nanoCAD/Механика/СПДС 24.5, 24.1, 24.0,
 23.1, 23.0, 22.0): плагин запускают/отлаживают в **соответствующей** версии.
 
+## Сборка и отладка C++-плагина
+
+### Сборка
+Build (Debug x64) проекта `SandboxCpp` собирает **плагин-DLL**:
+```
+F:\Temp\Practice2024\Sandbox\CPP.2024\x64\Debug\SandboxCpp.dll
+```
+(вместе с `.lib` и `.exp`). Это и есть загружаемый в CAD модуль.
+
+### Настройка отладки (Property Pages → Debugging)
+- **Debugger to launch**: `Local Windows Debugger`.
+- **Command**: путь к exe CAD, который запускается при F5 —
+  `F:\Temp\Practice2024\nanoCAD.45xx\NCad\ncad_mdd…exe`.
+- **Working Directory**: `$(ProjectDir)`.
+- **Merge Environment**: `Yes`.
+
+То есть F5 запускает **нужную версию nanoCAD** с подключённым отладчиком —
+брейкпоинты в коде команды срабатывают.
+
+### Автозагрузка плагина — `AutoloadModules.mcx`
+Текстовый файл (в `CPP.2024`), перечисляющий DLL для автозагрузки в CAD:
+```
+..\x64\Debug\SandboxCpp.dll
+```
+CAD при старте читает этот список и подгружает плагин — после чего команда
+(`createSheetSolidCmd` и т.п.) доступна по имени.
+
+> Цикл разработки: правка кода → Build (DLL) → F5 (запуск nanoCAD с отладчиком,
+> DLL автозагружается по `AutoloadModules.mcx`) → выполнить команду → отладка.
+
 ## Инструменты
 
 - **TortoiseSVN** — checkout/commit/update, Repository Browser (просмотр дерева,
   ревизий, авторов).
-- **Visual Studio 2022** — разработка (стандарт п. 3.a).
+- **Visual Studio 2022** — разработка (стандарт п. 3.a). Проект помечен как
+  «Visual Studio 2019» — поэтому при открытии предлагает retarget (→ Cancel).
 - Сборки nanoCAD / MechaniCS (несколько версий) — для запуска и отладки команд.
