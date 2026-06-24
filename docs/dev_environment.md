@@ -61,6 +61,25 @@ sources/MCS/branches/
 - не реже раза в неделю синхронизировать локальную копию (update);
 - при конфликтах за основу брать версию с сервера.
 
+## Добавление своего файла задания
+
+Соглашение об именах: каждый создаёт **свой** файл задания
+`task_<фамилия>.cpp` (C++) в `CPP.2024` (и/или `task_<фамилия>.cs` в `CS.2024`).
+Пример инструктора — `task_fedorov.cpp` / `task_fedorov.cs`.
+
+Порядок:
+1. Создать `CPP.2024\task_<фамилия>.cpp`, написать в нём свою команду.
+2. Добавить файл в проект (Solution Explorer → Add Existing Item) — при этом
+   меняются `SandboxCpp.vcxproj` и `SandboxCpp.vcxproj.filters`.
+3. Собрать, проверить под nanoCAD.
+4. **Commit** в SVN (TortoiseSVN → SVN Commit): в наборе изменений будут
+   `task_<фамилия>.cpp` (added), `SandboxCpp.vcxproj` + `.filters` (modified);
+   написать сообщение → OK.
+
+> Свой код держим в **отдельном** файле `task_<фамилия>.cpp` — не правим чужие
+> `SampleCmd*`/`SimpleSheeSolidSample.cpp` (стандарт: правки в чужом коде — с
+> ником и датой, п. 4.h.iv).
+
 ## Открытие проектов в Visual Studio 2022
 
 После checkout в `…\Practice2024\Sandbox\` лежат проекты:
