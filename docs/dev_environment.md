@@ -112,6 +112,20 @@ F:\Temp\Practice2024\Sandbox\CPP.2024\x64\Debug\SandboxCpp.dll
 CAD при старте читает этот список и подгружает плагин — после чего команда
 (`createSheetSolidCmd` и т.п.) доступна по имени.
 
+### Автозагрузка .NET-плагина — `*load.config` (для справки)
+Для C# (CS.2024) — XML-файл со списком модулей:
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+    <list>
+        <module path="F:\Temp\Practice2024\Sandbox\CS.2024\bin\x64\Debug\net6.0-windows\SandboxCS.dll"/>
+    </list>
+</root>
+```
+Сборка C# (`net6.0-windows`) даёт `SandboxCS.dll` (+ `.deps.json`, `.pdb`).
+Мы работаем на **C++**, но механизм аналогичен: текстовый список DLL для
+автозагрузки.
+
 > Цикл разработки: правка кода → Build (DLL) → F5 (запуск nanoCAD с отладчиком,
 > DLL автозагружается по `AutoloadModules.mcx`) → выполнить команду → отладка.
 
