@@ -61,9 +61,33 @@ sources/MCS/branches/
 - не реже раза в неделю синхронизировать локальную копию (update);
 - при конфликтах за основу брать версию с сервера.
 
+## Открытие проектов в Visual Studio 2022
+
+После checkout в `…\Practice2024\Sandbox\` лежат проекты:
+
+| Каталог | Solution | Проект | Язык |
+|---|---|---|---|
+| `CPP.2024` | `SandboxCpp.sln` | `SandboxCpp.vcxproj` | C++ |
+| `CS.2024` | (своё решение) | — | C# |
+| `SandboxTestsCpp` | — | — | тесты C++ |
+| `SandboxTestsCs` | — | — | тесты C# |
+
+### C++ проект (`SandboxCpp.sln`)
+1. VS 2022 → **File → Open → Project/Solution** →
+   `…\Practice2024\Sandbox\CPP.2024\SandboxCpp.sln`.
+2. Появится диалог **Review Solution Actions → Retarget Projects**
+   («…use an earlier version of the Visual C++ platform toolset…»,
+   Windows SDK 10.0, Platform Toolset → Upgrade to v143).
+   > ⚠️ Нажать **Cancel** — **НЕ** обновлять toolset. Проект должен собираться
+   > исходным toolset'ом (совместимым с целевой сборкой MechaniCS/nanoCAD).
+   > Обновление сломает совместимость со сборкой продукта.
+
+На рабочем столе — несколько версий CAD (nanoCAD/Механика/СПДС 24.5, 24.1, 24.0,
+23.1, 23.0, 22.0): плагин запускают/отлаживают в **соответствующей** версии.
+
 ## Инструменты
 
 - **TortoiseSVN** — checkout/commit/update, Repository Browser (просмотр дерева,
   ревизий, авторов).
-- **Visual Studio** — разработка (стандарт п. 3.a).
-- Сборки nanoCAD / MechaniCS — для запуска и отладки команд.
+- **Visual Studio 2022** — разработка (стандарт п. 3.a).
+- Сборки nanoCAD / MechaniCS (несколько версий) — для запуска и отладки команд.
