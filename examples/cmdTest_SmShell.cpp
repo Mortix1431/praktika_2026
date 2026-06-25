@@ -1,64 +1,62 @@
-//==================================================================================================
-// КАРКАС автотеста построения «Обечайки» (sheet-metal shell) — по образцу test_SmHole.
-//
-// Идея автотеста (как в примере преподавателя для Hole):
-//   1) взять точку(и) на тестовом контуре/эскизе;
-//   2) собрать строку, ЭМУЛИРУЮЩУЮ клики пользователя (выбор эскиза + «Точка на
-//      контуре» + завершение);
-//   3) запустить команду обечайки в тестовом режиме — TestExecuteCommand;
-//   4) сверить построенное тело с эталонным — compareSolids;
-//   5) при несовпадении — setTestToolResValue(false).
-//
-// (!) Места, помеченные TODO, надо заполнить из СВОЕЙ среды:
-//     - имя команды обечайки в перечислении SmCmd (рядом с SmCmd::Hole);
-//     - handle'ы объектов из тестового DWG (смотреть Entity Monitor'ом);
-//     - при необходимости — параметры (толщина/радиус/высота) в строке ввода.
-//
-// Лучший живой образец — файл SmHole.cpp (его тело = пример из задания).
-//==================================================================================================
 #include "stdafx.h"
 #include "SmTests.h"
+//==================================================================================================
 
 //==================================================================================================
-// Команда test_SmShell: построить обечайку по контуру и сверить с эталоном.
+//	Автотест построения «Обечайки» (sheet-metal) — ПО ОБРАЗЦУ cmdTest_SmHole.
+//	для вызова требуется открыть документ-шаблон "SmShell_TemplateTest.dwg"
+//
+//	Демонстрирует три типа эмуляции кликов (из задания):
+//	  1) ПО ТОЧКЕ            — getStrCenterPoint(h)  (как «по толщине листа» в Hole)
+//	  2) ТОЧКА НА КОНТУРЕ    — getContourPoints(h) / getPointOnContour(h)
+//	  3) PdNode (конкретный узел) — конкретный pts[i] контура
+//
+//	(!) TODO из своей среды: имя команды обечайки в SmCmd (F12 по SmCmd::Hole),
+//	    нужные параметры (SmCmd::param_...) и handle'ы из тестового DWG (Entity Monitor).
 //==================================================================================================
 void cmdTest_SmShell(MCSVariant*)
 {
-	// --- handle'ы объектов тестового шаблона DWG ---------------------------------
-	// TODO: подставить реальные handle (открыть шаблон, навести Entity Monitor)
-	const __int64 hSketch   = 0x0;   // эскиз/контур обечайки (что выбираем — «Эскиз»)
-	const __int64 hExpected = 0x0;   // эталонное тело-обечайка
-	const __int64 hActual   = 0x0;   // тело, которое построит команда
+	NO_SM_DIALOGS;					//	без диалогов — команда идёт из строки ввода
 
-	// --- «Точка на контуре»: берём точку, лежащую НА контуре -----------------------
-	// (в отличие от Hole, где брали центр через getCenterPoint)
-	mcsPoint ptOnContour = getPointOnContour(hSketch);
-	McsString strPt = pointToString(ptOnContour);
+	setTestToolResValue(true);		//	по умолчанию тест считаем пройденным
 
-	// --- строка, эмулирующая клики пользователя -----------------------------------
-	// obj=<эскиз>  pt=<точка на контуре>  cmdid=command_finish (завершить шаги диалога)
-	// При необходимости сюда же добавляются параметры обечайки (толщина/радиус/высота).
-	McsString strCmdInput;
+	McsString strPt, strCmdInput;
+
+	//	проверяем, что у эталонного тела сохранились привязки по ключам (точки/оси)
+	checkSolidFeatures(0x0);		//	TODO: handle эталонного тела
+
+	//	---- 1) ПО ТОЧКЕ: обечайка, точка = центр контура --------------------------
+	strPt = getStrCenterPoint(0x0);	//	TODO: handle эскиза/контура
 	strCmdInput.Format(_T("obj=0x%x,pt=%s cmdid=%d cmdid=%d"),
-		hSketch, strPt.asT(),
+		0x0, strPt,					//	TODO: handle эскиза
 		SmCmd::command_finish,
-		SmCmd::command_finish);
+		SmCmd::command_finish
+	);
+	gpMcContext->TestExecuteCommand(SmCmd::Shell.asT(), strCmdInput);	//	TODO: имя команды обечайки
+	if (!compareSolids(0x0, 0x0))	//	TODO: эталон, построенное
+		setTestToolResValue(false);
 
-	// --- запуск команды обечайки в тестовом режиме --------------------------------
-	// TODO: SmCmd::Shell — заменить на реальное имя команды обечайки из SmCmd
+	//	---- 2) ТОЧКА НА КОНТУРЕ: точка берётся НА кривой контура ------------------
+	mcsPoint3dArray pts = getContourPoints(0x0);		//	TODO: handle контура
+	strCmdInput.Format(_T("obj=0x%x,pt=%s cmdid=%d cmdid=%d"),
+		0x0, pointToString(pts[0]),	//	pts[0] — точка на контуре; pts[i] — конкретный узел (PdNode)
+		SmCmd::command_finish,
+		SmCmd::command_finish
+	);
 	gpMcContext->TestExecuteCommand(SmCmd::Shell.asT(), strCmdInput);
+	if (!compareSolids(0x0, 0x0))
+		setTestToolResValue(false);
 
-	// --- сверка результата с эталоном ---------------------------------------------
-	if (!compareSolids(hExpected, hActual))
+	//	---- 3) С ПАРАМЕТРОМ (напр. толщина 3) — по образцу Hole -------------------
+	strPt = getStrCenterPoint(0x0);
+	strCmdInput.Format(_T("obj=0x%x,pt=%s cmdid=%d cmdid=%d num=%d cmdid=%d"),
+		0x0, strPt,
+		SmCmd::command_finish,
+		SmCmd::param_thickness, 3,	//	TODO: нужный параметр обечайки (толщина/радиус/высота)
+		SmCmd::command_finish
+	);
+	gpMcContext->TestExecuteCommand(SmCmd::Shell.asT(), strCmdInput);
+	if (!compareSolids(0x0, 0x0))
 		setTestToolResValue(false);
 }
-
-//==================================================================================================
-// Интеграция (как у остальных Sm-команд):
-//   1) В SmTests.cpp вверху:           void cmdTest_SmShell(MCSVariant*);
-//   2) В SmTests.cpp в MCSInit():
-//        gpMcContext->RegisterCommand(mcsCmd(cmdTest_SmShell, _T("test_SmShell"),
-//            MCS_CMD_REDRAW | MCS_CMD_NOCHECK | MCS_CMD_NO_PREFIX));
-//   3) Добавить этот файл в проект (Source Files), собрать, запустить test_SmShell
-//      на тестовом документе-шаблоне.
 //==================================================================================================
