@@ -91,9 +91,10 @@ DLL, загрузить модуль, ввести `test_SmCreateGeom`.
   в `SmTests.cpp` — только объявления, хелперы и `MCSInit`.
 
 ### Следующая задача — автотест «Обечайка» (sheet-metal shell)
-- `examples/cmdTest_SmShell.cpp` — **каркас** по образцу `test_SmHole`:
-  эмуляция кликов (выбор эскиза + «Точка на контуре» через `getPointOnContour`)
-  → `gpMcContext->TestExecuteCommand` → `compareSolids` с эталоном.
+- `examples/SmShell.cpp` — **отдельный файл** теста (как `SmHole.cpp`) по образцу
+  `cmdTest_SmHole`: эмуляция кликов (выбор эскиза + «Точка на контуре» через
+  `getContourPoints`/`getPointOnContour`) → `gpMcContext->TestExecuteCommand`
+  → `compareSolids` с эталоном.
 - Паттерн автотеста: `pointToString(getPointOnContour(h))` → `strInput.Format`
   с токенами `obj=`, `pt=`, `cmdid=command_finish` → запуск команды в тест-режиме
   → сверка тел. Хелперы уже есть в `SmTests.cpp`.
