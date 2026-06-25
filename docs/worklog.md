@@ -82,3 +82,20 @@
 ### Запуск в nanoCAD
 Объявить команду вверху `SmTests.cpp`, зарегистрировать в `MCSInit()`, собрать
 DLL, загрузить модуль, ввести `test_SmCreateGeom`.
+
+### Грабли (проверено на практике)
+- Перед пересборкой DLL **закрывать nanoCAD** — иначе линкер не может
+  перезаписать `SmTests.dll` (ошибка `1168 — не удаётся открыть для записи`),
+  собирается старая версия, команда «не находится».
+- Каждая Sm-команда живёт в **своём `.cpp`** (`SmHole.cpp`, `SmCreate.cpp`…);
+  в `SmTests.cpp` — только объявления, хелперы и `MCSInit`.
+
+### Следующая задача — автотест «Обечайка» (sheet-metal shell)
+- `examples/cmdTest_SmShell.cpp` — **каркас** по образцу `test_SmHole`:
+  эмуляция кликов (выбор эскиза + «Точка на контуре» через `getPointOnContour`)
+  → `gpMcContext->TestExecuteCommand` → `compareSolids` с эталоном.
+- Паттерн автотеста: `pointToString(getPointOnContour(h))` → `strInput.Format`
+  с токенами `obj=`, `pt=`, `cmdid=command_finish` → запуск команды в тест-режиме
+  → сверка тел. Хелперы уже есть в `SmTests.cpp`.
+- Заполнить из своей среды: имя команды в `SmCmd`, handle'ы из тестового DWG.
+- Отладка типов MCS — через `mechanics.natvis` (визуализатор точек/геометрии).
