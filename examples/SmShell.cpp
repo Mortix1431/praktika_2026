@@ -7,9 +7,9 @@
 //	Открыть документ-шаблон "SmShell_TemplateTest.dwg".
 //	Источник 0x7A5, эталон-солид (Тело 1) 0x8EB. Команда обечайки: "smshell".
 //
-//	Приём из SmCreate: handle построенного тела находим как разницу множеств
-//	тел ДО и ПОСЛЕ построения (idsAfter - idsBefore), а не хардкодим.
-//	Точку берём НА контуре (getContourPoints) — обечайке нужна «точка на контуре».
+//	(!) Точку берём getPointOnContour — точка НА РЕБРЕ контура. getContourPoints
+//	    тут не годится: у прямоугольника нет дуг, и он откатывается на центр.
+//	Handle построенного тела — как в SmCreate: разница тел до/после.
 //==================================================================================================
 void cmdTest_SmShell(MCSVariant*)
 {
@@ -21,18 +21,13 @@ void cmdTest_SmShell(MCSVariant*)
 	mcsWorkIDArray idsSolidsBefore, idsSolidsAfter;
 	gpMcObjManager->getObjectsByFilter(_T("ASKI"), IID_IMc3dSolid, &idsSolidsBefore);
 
-	//	точка НА контуре источника
-	mcsPoint3dArray pts = getContourPoints(0x7A5);
-	if (pts.isEmpty())
-	{
-		setTestToolResValue(false);
-		return;
-	}
+	//	точка НА контуре источника (на ребре)
+	McsString strPt = pointToString(getPointOnContour(0x7A5));
 
-	//	эмуляция кликов: выбрать источник + точка на контуре + дважды «Готово»
+	//	эмуляция кликов: выбрать источник в точке на контуре + дважды «Готово»
 	McsString strCmdInput;
 	strCmdInput.Format(_T("obj=0x%x,pt=%s cmdid=%d cmdid=%d"),
-		0x7A5, pointToString(pts.first()),
+		0x7A5, strPt,
 		SmCmd::command_finish,
 		SmCmd::command_finish
 	);
