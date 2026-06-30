@@ -20,6 +20,16 @@ void cmdTest_SmShell(MCSVariant*)
 
 	setTestToolResValue(true);		//	по умолчанию тест считаем пройденным
 
+	//	Форсируем синхронную 3D-конвертацию. Построение обечайки (SmRuledSolid)
+	//	идёт по оконным событиям (~4 с), а в тест-режиме команда выходит за ~0.2 с,
+	//	не успев создать тело. Force3dCvt=1 переводит конвертацию в синхронный режим
+	//	(флаг читается в логе как "R/INT Nano3d\Force3dCvt"). Механизм — тот же
+	//	RegSaver, что и в setSmDlgMode.
+	IMcRegSaverPtr pRS;
+	pRS.Attach(gpMcContext->GetRegSaver(_T("Nano3d")));
+	if (pRS)
+		pRS->putBool(_T("Force3dCvt"), true);
+
 	mcsWorkIDArray idsSolidsBefore, idsSolidsAfter;
 	gpMcObjManager->getObjectsByFilter(_T("ASKI"), IID_IMc3dSolid, &idsSolidsBefore);
 
