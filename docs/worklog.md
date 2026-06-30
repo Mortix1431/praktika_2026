@@ -131,7 +131,19 @@ ContourPoint=4` (4 = «точка на контуре»).
 - Handle'ы плывут при пересборке модели — фиксировать по чистому сохранённому
   dwg (источник-эскиз + эталон), дальше не перестраивать.
 
-### Сценарий теста (эмуляция кликов)
-`obj=<2D Эскиз>,pt=… cmdid=10009 obj=<2D Эскиз>,pt=… cmdid=100001`
-→ выбрать эскиз → «Точка на контуре» → точка зазора → «Закончить». Тело берём
-разницей тел до/после (`getObjectsByFilter`+`Subtract`), сверяем `compareSolids`.
+### Сценарий теста (эмуляция кликов) — по образцу `cmdTest_SmRuled`
+Обечайка внутри = `SmRuledSolid`, поэтому формат ввода берём 1-в-1 из рабочего
+`SmRuled.cpp`. Базовая сборка:
+`obj=0x<эскиз>,pt=<getCenterPoint> cmdid=command_finish` — **ОДИН** finish,
+точка — **центр эскиза** (`getCenterPoint`), команда `smshell` строкой.
+Тело берём разницей тел до/после (`getObjectsByFilter`+`Subtract`), сверяем
+`compareSolids(эталон, построенное)`. Построение синхронное.
+
+Грабли (мои ошибки, исправлено по SmRuled):
+- было `getPointOnContour` (точка на ребре) → надо `getCenterPoint` (центр);
+- было **два** `command_finish` → надо **один**;
+- `cmdid=10009` для базовой сборки не нужен.
+
+Зазор (если надо подогнать под эталон) — как в SmRuled:
+`cmdid=param_GapShiftType cmdid=enum_gsAngle|gsRatio|gsLength num=<…>` либо
+`cmdid=param_GapValue num=<…>`. «Точка на контуре» (smshell) = `cmdid=10009`+точка.

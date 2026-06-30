@@ -5,16 +5,14 @@
 //==================================================================================================
 //	Автотест построения «Обечайки» (Shell). Открыть "SmShell_TemplateTest.dwg".
 //
-//	Команда — "smshell" (фича SmRuledSolid). Меню (CSLEntityMonitor::SetCommands):
-//	    10007  — «Эскиз», 10009 — «Точка на контуре», 100001 — «Закончить».
+//	Обечайка внутри = SmRuledSolid, поэтому строим РОВНО по образцу cmdTest_SmRuled:
+//	    obj=0x<эскиз>,pt=<ЦЕНТР эскиза> cmdid=command_finish   (ОДИН finish!)
+//	Команда обечайки — "smshell" (в SmCmd имени нет, подаём строкой).
+//	Точку берём getCenterPoint (центр эскиза), как в SmRuled, а НЕ getPointOnContour.
+//	Тело = разница тел до/после (как в SmRuled), сверка — compareSolids с эталоном.
 //
-//	Объекты шаблона (Инспектор):
-//	    источник — «2D Эскиз»         handle 7A5 (свободный прямоугольник справа);
-//	    эталон   — «Обечайка» (тело)  handle 8EB.
-//	Хэндлы могут «уехать» при пересборке модели — поэтому если заданный хэндл
-//	не находится, источник/эталон ищем сами: 2D-эскиз по IID_IMcPlanarSketch,
-//	эталон — тело, уже бывшее в шаблоне до построения.
-//	Новое тело = разница тел до/после (как в SmCreate), сверка — compareSolids.
+//	Объекты шаблона (Инспектор): источник «2D Эскиз» = 7A5, эталон «Обечайка» = 8EB.
+//	Если хэндлы «уехали» при пересборке — источник/эталон ищем сами.
 //==================================================================================================
 void cmdTest_SmShell(MCSVariant*)
 {
@@ -22,7 +20,6 @@ void cmdTest_SmShell(MCSVariant*)
 
 	setTestToolResValue(true);		//	по умолчанию тест считаем пройденным
 
-	//	тела ДО построения
 	mcsWorkIDArray idsSolidsBefore, idsSolidsAfter;
 	gpMcObjManager->getObjectsByFilter(_T("ASKI"), IID_IMc3dSolid, &idsSolidsBefore);
 
@@ -31,19 +28,13 @@ void cmdTest_SmShell(MCSVariant*)
 	if (!gpMcObjManager->getObject(idEtalon))
 		idEtalon = idsSolidsBefore.IsEmpty() ? mcsWorkID() : idsSolidsBefore.first();
 
-	//	источник — 2D-эскиз 0x7A5; если уехал — первый годный эскиз листа
+	//	источник — 2D-эскиз 0x7A5; если уехал — первый эскиз листа
 	__int64 hSketch = 0x7A5;
 	if (!gpMcObjManager->getObject(getIdByHandle(hSketch)))
 	{
-		hSketch = 0;
 		mcsWorkIDArray idsSketches;
 		gpMcObjManager->getObjectsByFilter(_T("ASKI"), IID_IMcPlanarSketch, &idsSketches);
-		for (int i = 0; i < idsSketches.GetSize() && hSketch == 0; ++i)
-		{
-			mcsPoint pt = getPointOnContour(idsSketches[i].handle());
-			if (pt.x != 0.0 || pt.y != 0.0 || pt.z != 0.0)	//	есть геометрия
-				hSketch = idsSketches[i].handle();
-		}
+		hSketch = idsSketches.IsEmpty() ? 0 : idsSketches.first().handle();
 	}
 	if (hSketch == 0)
 	{
@@ -51,23 +42,15 @@ void cmdTest_SmShell(MCSVariant*)
 		return;
 	}
 
-	//	точка НА контуре эскиза (на ребре)
-	McsString strPt = pointToString(getPointOnContour(hSketch));
+	//	центр эскиза — точка выбора (как в cmdTest_SmRuled)
+	mcsPoint ptCenter = getCenterPoint(hSketch);
 
-	//	эмуляция кликов: выбрать эскиз → «Закончить» (×2) → построить обечайку
+	//	эмуляция кликов: выбрать эскиз → «Закончить» (ОДИН finish) → построить
 	McsString strCmdInput;
-	strCmdInput.Format(_T("obj=0x%x,pt=%s cmdid=%d cmdid=%d"),
-		hSketch, strPt,
-		SmCmd::command_finish,
+	strCmdInput.Format(_T("obj=0x%x,pt=%s cmdid=%d"),
+		hSketch, pointToString(ptCenter),
 		SmCmd::command_finish
 	);
-
-	//	если эталон построен с зазором «по точке на контуре» — вариант с 10009:
-	//	strCmdInput.Format(_T("obj=0x%x,pt=%s cmdid=%d obj=0x%x,pt=%s cmdid=%d cmdid=%d"),
-	//		hSketch, strPt, 10009, hSketch, strPt,
-	//		SmCmd::command_finish, SmCmd::command_finish);
-
-	//	запуск команды обечайки
 	gpMcContext->TestExecuteCommand(_T("smshell"), strCmdInput);
 
 	//	новое тело = (после) - (до)
