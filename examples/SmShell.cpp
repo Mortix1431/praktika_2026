@@ -3,40 +3,49 @@
 //==================================================================================================
 
 //==================================================================================================
-//	Автотест построения «Обечайки» (Shell) — по образцу cmdTest_SmHole.
+//	Автотест построения «Обечайки» (Shell) — по образцу cmdTest_SmCreate.
 //	Открыть документ-шаблон "SmShell_TemplateTest.dwg".
+//	Источник 0x7A5, эталон-солид (Тело 1) 0x8EB. Команда обечайки: "smshell".
 //
-//	Команда обечайки: "smshell" (в командной строке печатается "smshell - Shell").
-//	Подаём её строкой, как _T("CALLEDIT") в SmHole.cpp.
-//
-//	handle'ы из шаблона (Inspector -> поле Handle):
-//	    источник (прямоугольник/эскиз) = 0x7A5
-//	    эталон-солид (Тело 1)          = 0x8EB
-//	    построенное тело               = ??? (узнать после первого построения)
+//	Приём из SmCreate: handle построенного тела находим как разницу множеств
+//	тел ДО и ПОСЛЕ построения (idsAfter - idsBefore), а не хардкодим.
+//	Точку берём НА контуре (getContourPoints) — обечайке нужна «точка на контуре».
 //==================================================================================================
 void cmdTest_SmShell(MCSVariant*)
 {
-	NO_SM_DIALOGS;					//	команда идёт из строки ввода, без диалогов
+	NO_SM_DIALOGS;					//	без диалогов — команда идёт из строки
 
 	setTestToolResValue(true);		//	по умолчанию тест считаем пройденным
 
-	McsString strPt, strCmdInput;
+	//	запоминаем тела ДО построения
+	mcsWorkIDArray idsSolidsBefore, idsSolidsAfter;
+	gpMcObjManager->getObjectsByFilter(_T("ASKI"), IID_IMc3dSolid, &idsSolidsBefore);
 
-	//	точка на источнике (центр контура)
-	strPt = getStrCenterPoint(0x7A5);
+	//	точка НА контуре источника
+	mcsPoint3dArray pts = getContourPoints(0x7A5);
+	if (pts.isEmpty())
+	{
+		setTestToolResValue(false);
+		return;
+	}
 
-	//	эмуляция кликов: выбрать источник + ткнуть точку + дважды «Готово»
+	//	эмуляция кликов: выбрать источник + точка на контуре + дважды «Готово»
+	McsString strCmdInput;
 	strCmdInput.Format(_T("obj=0x%x,pt=%s cmdid=%d cmdid=%d"),
-		0x7A5, strPt,
+		0x7A5, pointToString(pts.first()),
 		SmCmd::command_finish,
 		SmCmd::command_finish
 	);
 
-	//	запуск команды обечайки (smshell)
+	//	запуск команды обечайки
 	gpMcContext->TestExecuteCommand(_T("smshell"), strCmdInput);
 
+	//	новое тело = (после) - (до)
+	gpMcObjManager->getObjectsByFilter(_T("ASKI"), IID_IMc3dSolid, &idsSolidsAfter);
+	idsSolidsAfter.Subtract(idsSolidsBefore);
+
 	//	сверка построенного тела с эталоном (Тело 1 = 0x8EB)
-	if (!compareSolids(0x8EB, 0x0))	//	TODO: 2-й аргумент = handle построенной обечайки
+	if (idsSolidsAfter.IsEmpty() || !compareSolids(getIdByHandle(0x8EB), idsSolidsAfter.first()))
 		setTestToolResValue(false);
 }
 //==================================================================================================
