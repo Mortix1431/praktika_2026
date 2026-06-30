@@ -42,18 +42,20 @@ void cmdTest_SmShell(MCSVariant*)
 		return;
 	}
 
-	//	ЦЕНТР эскиза: с obj=<эскиз> выбирается ВЕСЬ эскиз.
-	//	(getPointOnContour давал точку на ребре → выбиралось ребро, не эскиз.)
+	//	центр — выбор всего эскиза; точка на ребре — кромка основания
 	mcsPoint ptCenter = getCenterPoint(hSketch);
+	mcsPoint ptEdge   = getPointOnContour(hSketch);
 
-	//	эмуляция кликов: выбрать эскиз → завершить выбор → построить (ДВА finish).
-	//	У smshell выбор эскиза — цикл выбора: первый finish завершает выбор,
-	//	второй — строит. С одним finish тест-монитор даёт "insufficient".
+	//	эмуляция кликов (по счётчику запросов тест-монитора):
+	//	выбрать эскиз → finish (завершить выбор) → указать кромку основания (ребро)
+	//	→ finish (построить). У smshell после эскиза идёт запрос объекта-кромки,
+	//	поэтому два finish подряд (без ребра между ними) не строят.
 	McsString strCmdInput;
-	strCmdInput.Format(_T("obj=0x%x,pt=%s cmdid=%d cmdid=%d"),
-		hSketch, pointToString(ptCenter),
-		SmCmd::command_finish,
-		SmCmd::command_finish
+	strCmdInput.Format(_T("obj=0x%x,pt=%s cmdid=%d obj=0x%x,pt=%s cmdid=%d"),
+		hSketch, pointToString(ptCenter),	//	выбрать эскиз
+		SmCmd::command_finish,				//	завершить выбор эскиза
+		hSketch, pointToString(ptEdge),		//	кромка основания (ребро)
+		SmCmd::command_finish				//	построить
 	);
 	gpMcContext->TestExecuteCommand(_T("smshell"), strCmdInput);
 
