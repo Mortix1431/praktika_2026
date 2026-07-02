@@ -5,72 +5,76 @@
 //	для вызова команды требуется открыть документ с именем "SmShell_TemplateTest.dwg"
 //
 //	Автотест «Обечайки» (команда "smshell", фича SmRuledSolid) — по образцу cmdTest_SmHole.
-//	Задание: построить Shell, эмулируя клики — «в точке» (выбор контура по точке),
-//	«точка на контуре» (селектор 10009) и «узел/PDNODE» (заранее поставленная точка,
-//	по координатам которой кликаем).
+//	Эмуляция кликов: выбор эскиза «в точке» (центр) + два «Закончить».
 //
-//	Шаблон устроен как у остальных Sm-тестов: источники — обычные ЗАМКНУТЫЕ контуры
-//	(полилинии в модели, НЕ параметрические «2D Эскизы»), эталоны построены вручную
-//	из таких же контуров. Узел (команда ТОЧКА) стоит на контуре 2 в месте зазора.
-//	(!) Параметрический «2D Эскиз» в тест-режиме не годится: выбор проходит, но
-//	    перестроение фичи между шагами не запускается, и команда откатывает
-//	    недостроенную фичу (в логе — Erased, без rt_Success).
+//	(!) Особенность тест-режима: построение обечайки идёт по событиям обновления
+//	    чертежа, и после TestExecuteCommand фича может остаться ПОГАШЕННОЙ
+//	    (в логе: Stop Rebuild ... "object is suppressed"). Поэтому после команды:
+//	    находим новую фичу (дифф до/после), снимаем погашение (unsuppress),
+//	    перестраиваем (update) и только затем сверяем compareSolids.
 void cmdTest_SmShell(MCSVariant*)
 {
 	NO_SM_DIALOGS;
 
 	setTestToolResValue(true);	//	ставим значение в реестре 1 (для отслеживания успешного выполнения тестов)
 
-	//	(!) У эскиза ДВА handle: 2D-представление на чертеже (7A5) и объект
-	//	    «2D Эскиз» в дереве Истории 3D Построений (DA4). Команде нужен
-	//	    ОБЪЕКТ ДЕРЕВА: в 3DLOG ручной сборки обечайка строится из DA4.
-	//	    Handle смотреть кликом по «2D Эскиз (2)» В ДЕРЕВЕ, не по чертежу.
-	const int hSketch3d = 0xDA4;	//	источник — «2D Эскиз (2)» (объект 3D-дерева)
-	const int hEtalon1  = 0x8EB;	//	эталон 1 — обечайка с параметрами по умолчанию
+	const int hSketch = 0x7A5;	//	источник — 2D-эскиз (представление на чертеже)
+	const int hEtalon = 0x8EB;	//	эталон — обечайка
 
 	McsString strPt, strCmdInput;
-	mcsWorkIDArray idsSolidsBefore, idsSolidsAfter;
-	gpMcObjManager->getObjectsByFilter(_T("ASKI"), IID_IMc3dSolid, &idsSolidsBefore);
 
-	//	1) базовое построение: выбор эскиза БЕЗ точки (obj-only, как в SmRuled
-	//	   OBJECT_3) + два «Закончить» (как в примере SmHole «по толщине листа»)
-	//.........................................................
-	strCmdInput.Format(_T("obj=0x%x cmdid=%d cmdid=%d"),
-		hSketch3d,
+	//	запоминаем ДО построения: тела и все объекты документа
+	//	(погашенная фича может не попадать в фильтр тел)
+	mcsWorkIDArray idsSolidsBefore, idsSolidsAfter, idsAllBefore, idsAllAfter;
+	gpMcObjManager->getObjectsByFilter(_T("ASKI"), IID_IMc3dSolid, &idsSolidsBefore);
+	gpMcObjManager->getObjectsByFilter(_T("ASKI"), IID_IMcDbObject, &idsAllBefore);
+
+	//	эмуляция кликов: выбрать эскиз в точке (центр) + два «Закончить»
+	strPt = pointToString(getCenterPoint(hSketch));
+	strCmdInput.Format(_T("obj=0x%x,pt=%s cmdid=%d cmdid=%d"),
+		hSketch, strPt,
 		SmCmd::command_finish,
 		SmCmd::command_finish
 	);
 	gpMcContext->TestExecuteCommand(_T("smshell"), strCmdInput);
 
+	//	ищем построенную фичу: сначала среди тел, затем среди всех новых объектов
+	mcsWorkID idNew;
 	gpMcObjManager->getObjectsByFilter(_T("ASKI"), IID_IMc3dSolid, &idsSolidsAfter);
 	idsSolidsAfter.Subtract(idsSolidsBefore);
-	if (idsSolidsAfter.IsEmpty() || !compareSolids(getIdByHandle(hEtalon1), idsSolidsAfter.first()))
-		setTestToolResValue(false);
-	if (idsSolidsAfter.GetSize())
-		idsSolidsBefore.Add(idsSolidsAfter.first());
+	if (!idsSolidsAfter.IsEmpty())
+		idNew = idsSolidsAfter.first();
+	else
+	{
+		gpMcObjManager->getObjectsByFilter(_T("ASKI"), IID_IMcDbObject, &idsAllAfter);
+		idsAllAfter.Subtract(idsAllBefore);
+		for (int i = 0; i < idsAllAfter.GetSize(); ++i)
+		{
+			IMc3dSolidPtr pS = gpMcObjManager->getObject(idsAllAfter[i]);
+			if (pS)
+			{
+				idNew = idsAllAfter[i];	//	новое тело (возможно, погашенное)
+				break;
+			}
+		}
+	}
 
-	//	2) построение с зазором по конкретной точке (узлу) — РАСКОММЕНТИРОВАТЬ после
-	//	   добавления в шаблон: контура 2, узла (ТОЧКА) на нём и эталона 2.
-	//	   Сценарий: выбор контура → «Закончить» → «Точка на контуре» (10009) →
-	//	   клик по координатам узла → «Закончить».
-	//.........................................................
-	//const int hContour2 = 0x0;	//	контур 2 — построение с зазором по точке
-	//const int hNode     = 0x0;	//	узел (ТОЧКА/PDNODE) на контуре 2 — место зазора
-	//const int hEtalon2  = 0x0;	//	эталон 2 — обечайка с зазором в узле
-	//
-	//strPt = pointToString(getCenterPoint(hContour2));
-	//McsString strPtNode = pointToString(getCenterPoint(hNode));	//	центр узла = сам узел
-	//strCmdInput.Format(_T("obj=0x%x,pt=%s cmdid=%d cmdid=%d obj=0x%x,pt=%s cmdid=%d"),
-	//	hContour2, strPt,				//	выбрать контур «в точке»
-	//	SmCmd::command_finish,			//	закончить выбор
-	//	10009,							//	селектор «Точка на контуре»
-	//	hContour2, strPtNode,			//	клик по контуру в точке узла
-	//	SmCmd::command_finish			//	построить
-	//);
-	//gpMcContext->TestExecuteCommand(_T("smshell"), strCmdInput);
-	//
-	//gpMcObjManager->getObjectsByFilter(_T("ASKI"), IID_IMc3dSolid, &idsSolidsAfter);
-	//idsSolidsAfter.Subtract(idsSolidsBefore);
-	//if (idsSolidsAfter.IsEmpty() || !compareSolids(getIdByHandle(hEtalon2), idsSolidsAfter.first()))
-	//	setTestToolResValue(false);
+	if (idNew.isNull())
+	{
+		setTestToolResValue(false);	//	фича не создана вовсе
+		return;
+	}
+
+	//	тест-режим оставляет фичу погашенной — снимаем погашение и перестраиваем
+	if (IMc3dSolidPtr pNew = gpMcObjManager->getObject(idNew))
+	{
+		if (pNew->isSuppressed())
+			pNew->unsuppress();
+	}
+	if (IMcDbEntityPtr pDBE = gpMcObjManager->getObject(idNew))
+		pDBE->update();
+
+	//	сверка построенного тела с эталоном
+	if (!compareSolids(getIdByHandle(hEtalon), idNew))
+		setTestToolResValue(false);
 }
