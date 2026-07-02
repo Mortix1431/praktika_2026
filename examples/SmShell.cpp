@@ -36,7 +36,9 @@ void cmdTest_SmShell(MCSVariant*)
 		SmCmd::command_finish,
 		SmCmd::command_finish
 	);
-	gpMcContext->TestExecuteCommand(_T("smshell"), strCmdInput);
+	//	команду зовём как рабочий cmdTest_SmRuled (тот же диалог «Обечайка»):
+	//	"smshell" — интерактивный алиас, в тест-режиме фичу не достраивает
+	gpMcContext->TestExecuteCommand(SmCmd::Ruled.asT(), strCmdInput);
 
 	//	ищем построенную фичу: сначала среди тел, затем среди всех новых объектов
 	mcsWorkID idNew;
