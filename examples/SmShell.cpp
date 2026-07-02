@@ -5,19 +5,15 @@
 //	для вызова команды требуется открыть документ с именем "SmShell_TemplateTest.dwg"
 //
 //	Автотест «Обечайки» (команда "smshell", фича SmRuledSolid) — по образцу cmdTest_SmHole.
-//	Эмуляция кликов: выбор эскиза «в точке» (центр) + «Закончить» ×2.
+//	Эмуляция кликов: «в точке» (центр эскиза), «точка на контуре» (селектор 10009 /
+//	ответ на запрос точки), явные параметры зазора (param_GapShiftType + enum_gs*).
 //
-//	Handle НЕ хардкодим — они плывут при каждой правке шаблона:
-//	    эталон   — единственное тело шаблона до построения;
-//	    источник — 2D-эскиз, НЕ входящий в тела (перебираем кандидатов,
-//	               пока команда не зафиксирует новую фичу).
-//
-//	(!) Особенность smshell в тест-режиме: фича фиксируется НЕПОСТРОЕННОЙ —
-//	    интерактивно её достраивает проход UpdateAll между кликами человека
-//	    (в логе у тестовых фич: Stop Rebuild — "object is suppressed").
-//	    Поэтому после команды: снимаем погашение (unsuppress) и достраиваем
-//	    вручную gpMcObjManager->updateAll() — как пример SimpleSheetSolid.
-//	    Затем compareSolids (сам красит: зелёное — совпало, красное — нет).
+//	Точная последовательность шагов smshell в тест-режиме не документирована,
+//	поэтому тест перебирает ВАРИАНТЫ ввода (от простого к полному), пока обечайка
+//	реально не построится (объём > 0). Какой вариант сработал — печатается
+//	уведомлением. После фиксации фичи: unsuppress + gpMcObjManager->updateAll()
+//	(тест-режим не гоняет проход UpdateAll, достраиваем сами, как SimpleSheetSolid).
+//	Затем compareSolids с эталоном (сам красит: зелёное — совпало, красное — нет).
 void cmdTest_SmShell(MCSVariant*)
 {
 	NO_SM_DIALOGS;
@@ -34,86 +30,93 @@ void cmdTest_SmShell(MCSVariant*)
 	}
 	mcsWorkID idEtalon = idsSolids.first();
 
-	//	кандидаты в источники: 2D-эскизы, не входящие в состав тел
-	mcsWorkIDArray idsSketches;
-	gpMcObjManager->getObjectsByFilter(_T("ASKI"), IID_IMcPlanarSketch, &idsSketches);
-	for (int i = 0; i < idsSolids.GetSize(); ++i)
+	//	источник — 0x7A5 (Инспектор); если handle уехал — свободный 2D-эскиз
+	__int64 hSketch = 0x7A5;
+	if (!gpMcObjManager->getObject(getIdByHandle(hSketch)))
 	{
-		IMc3dSolidPtr pSol = gpMcObjManager->getObject(idsSolids[i]);
-		if (!pSol)
-			continue;
-		mcsWorkIDArray idsContents;
-		pSol->getPartContents(idsContents, false);
-		idsSketches.Subtract(idsContents);	//	выкидываем эскизы эталона
-	}
-	//	приоритетный кандидат — 0x7A5 (handle источника из Инспектора);
-	//	если он уехал — остаются найденные автоматически
-	mcsWorkIDArray idsCandidates;
-	mcsWorkID idPreferred = getIdByHandle(0x7A5);
-	if (gpMcObjManager->getObject(idPreferred))
-		idsCandidates << idPreferred;
-	idsSketches.Subtract(idsCandidates);
-	for (int i = 0; i < idsSketches.GetSize(); ++i)
-		idsCandidates << idsSketches[i];
-	if (idsCandidates.IsEmpty())
-	{
-		setTestToolResValue(false);		//	эскиз-источник не найден
-		return;
+		mcsWorkIDArray idsSketches;
+		gpMcObjManager->getObjectsByFilter(_T("ASKI"), IID_IMcPlanarSketch, &idsSketches);
+		for (int i = 0; i < idsSolids.GetSize(); ++i)
+		{
+			IMc3dSolidPtr pSol = gpMcObjManager->getObject(idsSolids[i]);
+			if (!pSol)
+				continue;
+			mcsWorkIDArray idsContents;
+			pSol->getPartContents(idsContents, false);
+			idsSketches.Subtract(idsContents);	//	эскизы эталона не берём
+		}
+		if (idsSketches.IsEmpty())
+		{
+			setTestToolResValue(false);	//	эскиз-источник не найден
+			return;
+		}
+		hSketch = idsSketches.first().handle();
 	}
 
-	//	пробуем построить из каждого кандидата, пока не появится новая фича
-	McsString strCmdInput;
+	McsString strPtC = pointToString(getCenterPoint(hSketch));		//	клик «в точке»
+	McsString strPtE = pointToString(getPointOnContour(hSketch));	//	точка на контуре
+
+	//	варианты эмуляции ввода — от простого к полному
+	const int nInputs = 5;
+	McsString arrInputs[nInputs];
+	//	1: минимальный, один финиш (как простые случаи cmdTest_SmRuled)
+	arrInputs[0].Format(_T("obj=0x%x,pt=%s cmdid=%d"),
+		(int)hSketch, strPtC, SmCmd::command_finish);
+	//	2: два финиша (как пример cmdTest_SmHole «по толщине листа»)
+	arrInputs[1].Format(_T("obj=0x%x,pt=%s cmdid=%d cmdid=%d"),
+		(int)hSketch, strPtC, SmCmd::command_finish, SmCmd::command_finish);
+	//	3: ответ точкой на контуре на запрос команды + финиш
+	arrInputs[2].Format(_T("obj=0x%x,pt=%s cmdid=%d cmdid=%d obj=0x%x,pt=%s cmdid=%d"),
+		(int)hSketch, strPtC, SmCmd::command_finish, SmCmd::command_finish,
+		(int)hSketch, strPtE, SmCmd::command_finish);
+	//	4: селектор «Точка на контуре» (10009) + точка + два финиша
+	arrInputs[3].Format(_T("obj=0x%x,pt=%s cmdid=%d cmdid=%d obj=0x%x,pt=%s cmdid=%d cmdid=%d"),
+		(int)hSketch, strPtC, SmCmd::command_finish, 10009,
+		(int)hSketch, strPtE, SmCmd::command_finish, SmCmd::command_finish);
+	//	5: явный тип смещения зазора «Длина 0» + финиш
+	arrInputs[4].Format(_T("obj=0x%x,pt=%s cmdid=%d cmdid=%d cmdid=%d cmdid=%d num=%d cmdid=%d"),
+		(int)hSketch, strPtC, SmCmd::command_finish,
+		SmCmd::param_GapShiftType, SmCmd::enum_gsLength,
+		SmCmd::param_gapLength, 0, SmCmd::command_finish);
+
+	//	пробуем варианты, пока обечайка реально не построится (объём > 0)
 	mcsWorkID idNew;
-	for (int i = 0; i < idsCandidates.GetSize() && idNew.isNull(); ++i)
+	for (int i = 0; i < nInputs && idNew.isNull(); ++i)
 	{
-		mcsPoint ptCenter = getCenterPoint(idsCandidates[i].handle());
-		mcsPoint ptEdge   = getPointOnContour(idsCandidates[i].handle());
-
 		mcsWorkIDArray idsBefore, idsAfter;
 		gpMcObjManager->getObjectsByFilter(_T("ASKI"), IID_IMcDbObject, &idsBefore);
 
-		//	сценарий по приглашениям команды (проверен вручную):
-		//	1) «Выберите 2D эскиз профиля» — клик по эскизу В ТОЧКЕ (центр);
-		//	2) «Закончить» — завершить выбор эскиза (стадия выбора циклится);
-		//	3) «Закончить» — попытка коммита: команда помнит липкий параметр
-		//	   «По точке на контуре» от эталона и просит точку;
-		//	4) клик ТОЧКОЙ НА КОНТУРЕ (getPointOnContour — точка на ребре);
-		//	5) «Закончить» — коммит построения.
-		//	(!) obj подаём как 0x<hex> — строковый id вместе с pt не принимается.
-		strCmdInput.Format(_T("obj=0x%x,pt=%s cmdid=%d cmdid=%d obj=0x%x,pt=%s cmdid=%d"),
-			(int)idsCandidates[i].handle(), pointToString(ptCenter),
-			SmCmd::command_finish,			//	закончить выбор эскиза
-			SmCmd::command_finish,			//	коммит: команда запросит точку
-			(int)idsCandidates[i].handle(), pointToString(ptEdge),	//	точка на контуре (зазор)
-			SmCmd::command_finish			//	коммит
-		);
-		gpMcContext->TestExecuteCommand(_T("smshell"), strCmdInput);
+		gpMcContext->TestExecuteCommand(_T("smshell"), arrInputs[i]);
 
-		//	новая фича = (после) - (до); ищем среди новых объектов тело
+		//	новая фича = (после) - (до)
 		gpMcObjManager->getObjectsByFilter(_T("ASKI"), IID_IMcDbObject, &idsAfter);
 		idsAfter.Subtract(idsBefore);
 		for (int k = 0; k < idsAfter.GetSize(); ++k)
 		{
-			if (IMc3dSolidPtr pS = gpMcObjManager->getObject(idsAfter[k]))
+			IMc3dSolidPtr pS = gpMcObjManager->getObject(idsAfter[k]);
+			if (!pS)
+				continue;
+			//	тест-режим оставляет фичу погашенной и непостроенной —
+			//	снимаем погашение и достраиваем проходом UpdateAll
+			if (pS->isSuppressed())
+				pS->unsuppress();
+			gpMcObjManager->updateAll();
+			if (getVolumeByWorkId(idsAfter[k]) > 0)		//	реально построилась
 			{
-				idNew = idsAfter[k];	//	фича-обечайка (возможно, непостроенная)
-				break;
+				idNew = idsAfter[k];
+				McsString strMsg;
+				strMsg.Format(_T("\r\nSmShell: сработал вариант ввода %d\r\n"), i + 1);
+				gpMcContext->ShowNotification(strMsg, IMcContext::knmNative);
 			}
+			break;
 		}
 	}
 	if (idNew.isNull())
 	{
-		setTestToolResValue(false);		//	команда не зафиксировала фичу
+		gpMcContext->ShowNotification(_T("\r\nSmShell: ни один вариант ввода не построил тело\r\n"), IMcContext::knmNative);
+		setTestToolResValue(false);
 		return;
 	}
-
-	//	снимаем погашение и достраиваем фичу проходом UpdateAll
-	if (IMc3dSolidPtr pNew = gpMcObjManager->getObject(idNew))
-	{
-		if (pNew->isSuppressed())
-			pNew->unsuppress();
-	}
-	gpMcObjManager->updateAll();
 
 	//	сверка построенного тела с эталоном
 	if (!compareSolids(idEtalon, idNew))
