@@ -67,27 +67,26 @@ void cmdTest_SmShell(MCSVariant*)
 	for (int i = 0; i < idsCandidates.GetSize() && idNew.isNull(); ++i)
 	{
 		mcsPoint ptCenter = getCenterPoint(idsCandidates[i].handle());
+		mcsPoint ptEdge   = getPointOnContour(idsCandidates[i].handle());
 
 		mcsWorkIDArray idsBefore, idsAfter;
 		gpMcObjManager->getObjectsByFilter(_T("ASKI"), IID_IMcDbObject, &idsBefore);
 
-		//	клики (как в SmRuled): выбрать эскиз в точке + явно задать
-		//	«Тип смещения зазора = Соотношение 50» + «Закончить».
-		//	(!) Команда помнит липкий параметр «По точке на контуре» от построения
-		//	    эталона и без явного переключения требует лишний клик точки —
-		//	    из-за этого ввод кончался и команда тихо откатывалась.
-		strCmdInput.Format(_T("obj=%s,pt=%s cmdid=%d cmdid=%d cmdid=%d num=%d cmdid=%d"),
-			idsCandidates[i].asString(), pointToString(ptCenter),
-			SmCmd::param_GapShiftType,
-			SmCmd::enum_gsRatio,
-			SmCmd::param_gapRatio, 50,	//	смещение зазора: соотношение 50%
-			SmCmd::command_finish
+		//	сценарий по приглашениям команды (проверен вручную):
+		//	1) «Выберите 2D эскиз профиля» — клик по эскизу В ТОЧКЕ (центр);
+		//	2) «Закончить» — завершить выбор эскиза (стадия выбора циклится);
+		//	3) «Закончить» — попытка коммита: команда помнит липкий параметр
+		//	   «По точке на контуре» от эталона и просит точку;
+		//	4) клик ТОЧКОЙ НА КОНТУРЕ (getPointOnContour — точка на ребре);
+		//	5) «Закончить» — коммит построения.
+		//	(!) obj подаём как 0x<hex> — строковый id вместе с pt не принимается.
+		strCmdInput.Format(_T("obj=0x%x,pt=%s cmdid=%d cmdid=%d obj=0x%x,pt=%s cmdid=%d"),
+			(int)idsCandidates[i].handle(), pointToString(ptCenter),
+			SmCmd::command_finish,			//	закончить выбор эскиза
+			SmCmd::command_finish,			//	коммит: команда запросит точку
+			(int)idsCandidates[i].handle(), pointToString(ptEdge),	//	точка на контуре (зазор)
+			SmCmd::command_finish			//	коммит
 		);
-		//	запасной вариант, если задание требует именно «точку на контуре»:
-		//	три «Закончить» (третий коммитит после закрытия вопроса о точке) —
-		//	strCmdInput.Format(_T("obj=%s,pt=%s cmdid=%d cmdid=%d cmdid=%d"),
-		//		idsCandidates[i].asString(), pointToString(ptCenter),
-		//		SmCmd::command_finish, SmCmd::command_finish, SmCmd::command_finish);
 		gpMcContext->TestExecuteCommand(_T("smshell"), strCmdInput);
 
 		//	новая фича = (после) - (до); ищем среди новых объектов тело
