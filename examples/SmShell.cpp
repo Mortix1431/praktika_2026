@@ -21,20 +21,22 @@ void cmdTest_SmShell(MCSVariant*)
 
 	setTestToolResValue(true);	//	ставим значение в реестре 1 (для отслеживания успешного выполнения тестов)
 
-	//	handle'ы объектов шаблона — из Инспектора (обновить после пересборки dwg)
-	const int hContour1 = 0x7A5;	//	контур 1 (замкнутая полилиния) — базовое построение
+	//	(!) У эскиза ДВА handle: 2D-представление на чертеже (7A5) и объект
+	//	    «2D Эскиз» в дереве Истории 3D Построений (DA4). Команде нужен
+	//	    ОБЪЕКТ ДЕРЕВА: в 3DLOG ручной сборки обечайка строится из DA4.
+	//	    Handle смотреть кликом по «2D Эскиз (2)» В ДЕРЕВЕ, не по чертежу.
+	const int hSketch3d = 0xDA4;	//	источник — «2D Эскиз (2)» (объект 3D-дерева)
 	const int hEtalon1  = 0x8EB;	//	эталон 1 — обечайка с параметрами по умолчанию
 
 	McsString strPt, strCmdInput;
 	mcsWorkIDArray idsSolidsBefore, idsSolidsAfter;
 	gpMcObjManager->getObjectsByFilter(_T("ASKI"), IID_IMc3dSolid, &idsSolidsBefore);
 
-	//	1) базовое построение: клик по контуру «в точке» (центр) + два «Закончить»
-	//	   (как в примере SmHole «по толщине листа»)
+	//	1) базовое построение: выбор эскиза БЕЗ точки (obj-only, как в SmRuled
+	//	   OBJECT_3) + два «Закончить» (как в примере SmHole «по толщине листа»)
 	//.........................................................
-	strPt = pointToString(getCenterPoint(hContour1));
-	strCmdInput.Format(_T("obj=0x%x,pt=%s cmdid=%d cmdid=%d"),
-		hContour1, strPt,
+	strCmdInput.Format(_T("obj=0x%x cmdid=%d cmdid=%d"),
+		hSketch3d,
 		SmCmd::command_finish,
 		SmCmd::command_finish
 	);
