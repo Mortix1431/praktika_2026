@@ -71,12 +71,23 @@ void cmdTest_SmShell(MCSVariant*)
 		mcsWorkIDArray idsBefore, idsAfter;
 		gpMcObjManager->getObjectsByFilter(_T("ASKI"), IID_IMcDbObject, &idsBefore);
 
-		//	клики: выбрать эскиз в точке (центр) + два «Закончить»
-		strCmdInput.Format(_T("obj=%s,pt=%s cmdid=%d cmdid=%d"),
+		//	клики (как в SmRuled): выбрать эскиз в точке + явно задать
+		//	«Тип смещения зазора = Соотношение 50» + «Закончить».
+		//	(!) Команда помнит липкий параметр «По точке на контуре» от построения
+		//	    эталона и без явного переключения требует лишний клик точки —
+		//	    из-за этого ввод кончался и команда тихо откатывалась.
+		strCmdInput.Format(_T("obj=%s,pt=%s cmdid=%d cmdid=%d cmdid=%d num=%d cmdid=%d"),
 			idsCandidates[i].asString(), pointToString(ptCenter),
-			SmCmd::command_finish,
+			SmCmd::param_GapShiftType,
+			SmCmd::enum_gsRatio,
+			SmCmd::param_gapRatio, 50,	//	смещение зазора: соотношение 50%
 			SmCmd::command_finish
 		);
+		//	запасной вариант, если задание требует именно «точку на контуре»:
+		//	три «Закончить» (третий коммитит после закрытия вопроса о точке) —
+		//	strCmdInput.Format(_T("obj=%s,pt=%s cmdid=%d cmdid=%d cmdid=%d"),
+		//		idsCandidates[i].asString(), pointToString(ptCenter),
+		//		SmCmd::command_finish, SmCmd::command_finish, SmCmd::command_finish);
 		gpMcContext->TestExecuteCommand(_T("smshell"), strCmdInput);
 
 		//	новая фича = (после) - (до); ищем среди новых объектов тело
