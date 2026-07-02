@@ -53,32 +53,32 @@ void cmdTest_SmShell(MCSVariant*)
 		hSketch = idsSketches.first().handle();
 	}
 
-	McsString strPtC = getStrCenterPoint(hSketch);					//	клик «в точке» (как в примере)
-	McsString strPtE = pointToString(getPointOnContour(hSketch));	//	точка на контуре
+	McsString strPtC = getStrCenterPoint(hSketch);	//	клик «в точке» (формат X,Y)
 
-	//	варианты эмуляции ввода — первым идёт пример преподавателя
-	const int nInputs = 6;
+	//	(!) Точка в obj-токене — ДВУХМЕРНАЯ: парсер режет "obj=…,pt=…" по запятым
+	//	    и требует ровно 3 части (obj / pt=X / Y). pointToString даёт X,Y,Z —
+	//	    4 части, отсюда ошибка "strCmdParts.GetSize() != 3" в логе.
+	mcsPoint ptE = getPointOnContour(hSketch);
+	McsString strPtE;
+	strPtE.Format(_T("%g,%g"), ptE.x, ptE.y);		//	точка на контуре (X,Y)
+
+	//	варианты эмуляции ввода
+	const int nInputs = 4;
 	McsString arrInputs[nInputs];
-	//	1: пример «по толщине листа» — ТРИ «Закончить»
-	arrInputs[0].Format(_T("obj=0x%x,pt=%s cmdid=%d cmdid=%d cmdid=%d"),
-		(int)hSketch, strPtC,
-		SmCmd::command_finish, SmCmd::command_finish, SmCmd::command_finish);
-	//	2: один финиш (как простые случаи cmdTest_SmRuled)
-	arrInputs[1].Format(_T("obj=0x%x,pt=%s cmdid=%d"),
-		(int)hSketch, strPtC, SmCmd::command_finish);
-	//	3: два финиша (как cmdTest_SmHole)
-	arrInputs[2].Format(_T("obj=0x%x,pt=%s cmdid=%d cmdid=%d"),
-		(int)hSketch, strPtC, SmCmd::command_finish, SmCmd::command_finish);
-	//	4: ответ точкой на контуре на запрос команды + финиш
-	arrInputs[3].Format(_T("obj=0x%x,pt=%s cmdid=%d cmdid=%d obj=0x%x,pt=%s cmdid=%d"),
+	//	1: ответ точкой на контуре на запрос команды + финиш
+	arrInputs[0].Format(_T("obj=0x%x,pt=%s cmdid=%d cmdid=%d obj=0x%x,pt=%s cmdid=%d"),
 		(int)hSketch, strPtC, SmCmd::command_finish, SmCmd::command_finish,
 		(int)hSketch, strPtE, SmCmd::command_finish);
-	//	5: селектор «Точка на контуре» (10009) + точка + два финиша
-	arrInputs[4].Format(_T("obj=0x%x,pt=%s cmdid=%d cmdid=%d obj=0x%x,pt=%s cmdid=%d cmdid=%d"),
+	//	2: селектор «Точка на контуре» (10009) + точка + два финиша
+	arrInputs[1].Format(_T("obj=0x%x,pt=%s cmdid=%d cmdid=%d obj=0x%x,pt=%s cmdid=%d cmdid=%d"),
 		(int)hSketch, strPtC, SmCmd::command_finish, 10009,
 		(int)hSketch, strPtE, SmCmd::command_finish, SmCmd::command_finish);
-	//	6: явный тип смещения зазора «Длина 0» + финиш
-	arrInputs[5].Format(_T("obj=0x%x,pt=%s cmdid=%d cmdid=%d cmdid=%d cmdid=%d num=%d cmdid=%d"),
+	//	3: пример «по толщине листа» — три «Закончить»
+	arrInputs[2].Format(_T("obj=0x%x,pt=%s cmdid=%d cmdid=%d cmdid=%d"),
+		(int)hSketch, strPtC,
+		SmCmd::command_finish, SmCmd::command_finish, SmCmd::command_finish);
+	//	4: явный тип смещения зазора «Длина 0» + финиш
+	arrInputs[3].Format(_T("obj=0x%x,pt=%s cmdid=%d cmdid=%d cmdid=%d cmdid=%d num=%d cmdid=%d"),
 		(int)hSketch, strPtC, SmCmd::command_finish,
 		SmCmd::param_GapShiftType, SmCmd::enum_gsLength,
 		SmCmd::param_gapLength, 0, SmCmd::command_finish);
