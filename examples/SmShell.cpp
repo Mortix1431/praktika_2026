@@ -46,25 +46,34 @@ void cmdTest_SmShell(MCSVariant*)
 		pSol->getPartContents(idsContents, false);
 		idsSketches.Subtract(idsContents);	//	выкидываем эскизы эталона
 	}
-	if (idsSketches.IsEmpty())
+	//	приоритетный кандидат — 0x7A5 (handle источника из Инспектора);
+	//	если он уехал — остаются найденные автоматически
+	mcsWorkIDArray idsCandidates;
+	mcsWorkID idPreferred = getIdByHandle(0x7A5);
+	if (gpMcObjManager->getObject(idPreferred))
+		idsCandidates << idPreferred;
+	idsSketches.Subtract(idsCandidates);
+	for (int i = 0; i < idsSketches.GetSize(); ++i)
+		idsCandidates << idsSketches[i];
+	if (idsCandidates.IsEmpty())
 	{
-		setTestToolResValue(false);		//	свободный эскиз-источник не найден
+		setTestToolResValue(false);		//	эскиз-источник не найден
 		return;
 	}
 
 	//	пробуем построить из каждого кандидата, пока не появится новая фича
 	McsString strCmdInput;
 	mcsWorkID idNew;
-	for (int i = 0; i < idsSketches.GetSize() && idNew.isNull(); ++i)
+	for (int i = 0; i < idsCandidates.GetSize() && idNew.isNull(); ++i)
 	{
-		mcsPoint ptCenter = getCenterPoint(idsSketches[i].handle());
+		mcsPoint ptCenter = getCenterPoint(idsCandidates[i].handle());
 
 		mcsWorkIDArray idsBefore, idsAfter;
 		gpMcObjManager->getObjectsByFilter(_T("ASKI"), IID_IMcDbObject, &idsBefore);
 
 		//	клики: выбрать эскиз в точке (центр) + два «Закончить»
 		strCmdInput.Format(_T("obj=%s,pt=%s cmdid=%d cmdid=%d"),
-			idsSketches[i].asString(), pointToString(ptCenter),
+			idsCandidates[i].asString(), pointToString(ptCenter),
 			SmCmd::command_finish,
 			SmCmd::command_finish
 		);
