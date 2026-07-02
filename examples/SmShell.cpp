@@ -1,80 +1,46 @@
 #include "stdafx.h"
 #include "SmTests.h"
-//==================================================================================================
 
 //==================================================================================================
-//	Автотест построения «Обечайки» (Shell). Открыть "SmShell_TemplateTest.dwg".
+//	для вызова команды требуется открыть документ с именем "SmShell_TemplateTest.dwg"
 //
-//	Обечайка внутри = SmRuledSolid, поэтому строим РОВНО по образцу cmdTest_SmRuled:
-//	    obj=0x<эскиз>,pt=<ЦЕНТР эскиза> cmdid=command_finish   (ОДИН finish!)
-//	Команда обечайки — "smshell" (в SmCmd имени нет, подаём строкой).
-//	Точку берём getCenterPoint (центр эскиза), как в SmRuled, а НЕ getPointOnContour.
-//	Тело = разница тел до/после (как в SmRuled), сверка — compareSolids с эталоном.
-//
-//	Объекты шаблона (Инспектор): источник «2D Эскиз» = 7A5, эталон «Обечайка» = 8EB.
-//	Если хэндлы «уехали» при пересборке — источник/эталон ищем сами.
-//==================================================================================================
+//	Автотест «Обечайки» (команда "smshell", фича SmRuledSolid) — по образцу cmdTest_SmRuled.
+//	Шаблон устроен как у остальных Sm-тестов: источник — обычный ЗАМКНУТЫЙ контур
+//	(полилиния в модели, НЕ параметрический «2D Эскиз»), эталон — заранее построенная
+//	из такого же контура обечайка.
+//	(!) Параметрический «2D Эскиз» в тест-режиме не годится: выбор проходит, но
+//	    перестроение фичи между шагами команды не запускается, и по завершении
+//	    команда откатывает недостроенную фичу (в логе — Erased, без rt_Success).
+//	Handle'ы источника/эталона смотреть в Инспекторе после пересборки шаблона.
 void cmdTest_SmShell(MCSVariant*)
 {
-	NO_SM_DIALOGS;					//	без диалогов — команда идёт из строки
+	NO_SM_DIALOGS;
 
-	setTestToolResValue(true);		//	по умолчанию тест считаем пройденным
+	setTestToolResValue(true);	//	ставим значение в реестре 1 (для отслеживания успешного выполнения тестов)
 
-	//	Форсируем синхронную 3D-конвертацию. Построение обечайки (SmRuledSolid)
-	//	идёт по оконным событиям (~4 с), а в тест-режиме команда выходит за ~0.2 с,
-	//	не успев создать тело. Force3dCvt=1 переводит конвертацию в синхронный режим
-	//	(флаг читается в логе как "R/INT Nano3d\Force3dCvt"). Механизм — тот же
-	//	RegSaver, что и в setSmDlgMode.
-	IMcRegSaverPtr pRS;
-	pRS.Attach(gpMcContext->GetRegSaver(_T("Nano3d")));
-	if (pRS)
-		pRS->putBool(_T("Force3dCvt"), true);
+	const int hContour = 0x7A5;	//	источник — замкнутый контур (обновить из Инспектора)
+	const int hEtalon  = 0x8EB;	//	эталон — обечайка (обновить из Инспектора)
 
+	McsString strCmdInput;
+	mcsPoint  ptCenter;
 	mcsWorkIDArray idsSolidsBefore, idsSolidsAfter;
 	gpMcObjManager->getObjectsByFilter(_T("ASKI"), IID_IMc3dSolid, &idsSolidsBefore);
 
-	//	эталон — тело 0x8EB; если хэндл уехал — единственное тело шаблона
-	mcsWorkID idEtalon = getIdByHandle(0x8EB);
-	if (!gpMcObjManager->getObject(idEtalon))
-		idEtalon = idsSolidsBefore.IsEmpty() ? mcsWorkID() : idsSolidsBefore.first();
-
-	//	источник — 2D-эскиз 0x7A5; если уехал — первый эскиз листа
-	__int64 hSketch = 0x7A5;
-	if (!gpMcObjManager->getObject(getIdByHandle(hSketch)))
-	{
-		mcsWorkIDArray idsSketches;
-		gpMcObjManager->getObjectsByFilter(_T("ASKI"), IID_IMcPlanarSketch, &idsSketches);
-		hSketch = idsSketches.IsEmpty() ? 0 : idsSketches.first().handle();
-	}
-	if (hSketch == 0)
-	{
-		setTestToolResValue(false);		//	источник-эскиз не найден
-		return;
-	}
-
-	//	центр — выбор всего эскиза; точка на ребре — кромка основания
-	mcsPoint ptCenter = getCenterPoint(hSketch);
-	mcsPoint ptEdge   = getPointOnContour(hSketch);
-
-	//	эмуляция кликов (по счётчику запросов тест-монитора):
-	//	выбрать эскиз → finish (завершить выбор) → указать кромку основания (ребро)
-	//	→ finish (построить). У smshell после эскиза идёт запрос объекта-кромки,
-	//	поэтому два finish подряд (без ребра между ними) не строят.
-	McsString strCmdInput;
-	strCmdInput.Format(_T("obj=0x%x,pt=%s cmdid=%d obj=0x%x,pt=%s cmdid=%d"),
-		hSketch, pointToString(ptCenter),	//	выбрать эскиз
-		SmCmd::command_finish,				//	завершить выбор эскиза
-		hSketch, pointToString(ptEdge),		//	кромка основания (ребро)
-		SmCmd::command_finish				//	построить
-	);
+	//	построение с параметрами по умолчанию: клик по контуру + «Закончить»
+	ptCenter = getCenterPoint(hContour);
+	strCmdInput.Format(_T("obj=0x%x,pt=%s cmdid=%d"),
+		hContour, pointToString(ptCenter),
+		SmCmd::command_finish
+		);
+	//	если в логе будет "insufficient number of options" (команда просит ещё шаг —
+	//	«точка на контуре»), заменить формат на вариант с двумя «Закончить»:
+	//	strCmdInput.Format(_T("obj=0x%x,pt=%s cmdid=%d cmdid=%d"),
+	//		hContour, pointToString(ptCenter), SmCmd::command_finish, SmCmd::command_finish);
 	gpMcContext->TestExecuteCommand(_T("smshell"), strCmdInput);
 
-	//	новое тело = (после) - (до)
+	//	новое тело = (после) - (до), как в cmdTest_SmRuled
 	gpMcObjManager->getObjectsByFilter(_T("ASKI"), IID_IMc3dSolid, &idsSolidsAfter);
 	idsSolidsAfter.Subtract(idsSolidsBefore);
-
-	//	сверка построенного тела с эталоном
-	if (idsSolidsAfter.IsEmpty() || !compareSolids(idEtalon, idsSolidsAfter.first()))
+	if (idsSolidsAfter.IsEmpty() || !compareSolids(getIdByHandle(hEtalon), idsSolidsAfter.first()))
 		setTestToolResValue(false);
 }
-//==================================================================================================
